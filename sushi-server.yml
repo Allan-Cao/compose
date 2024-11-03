@@ -13,7 +13,7 @@ services:
       CF_API_KEY: ${CF_API_KEY}
       CURSEFORGE_FILES: ${CF_MODS}
       VERSION: 1.20.1
-      MEMORY: "4G"
+      MEMORY: "3G"
       USE_AIKAR_FLAGS: true
       ENABLE_ROLLING_LOGS: true
       TZ: "America/Edmonton"
