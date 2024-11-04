@@ -26,6 +26,7 @@ services:
       MAX_PLAYERS: 10
       PVP: true
       MOTD: ${MC_MOTD}
+      INITIAL_ENABLED_PACKS: "minecart_improvements"
 
     restart: unless-stopped
 
