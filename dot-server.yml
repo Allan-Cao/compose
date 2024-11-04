@@ -1,0 +1,33 @@
+services:
+  mc:
+    image: itzg/minecraft-server
+    volumes:
+      - dot-server:/data
+    ports:
+      - "25575:25575/tcp"
+      # - "24454:24454/udp"
+    environment:
+      EULA: true
+      type: PAPER
+      ENABLE_AUTOPUSE: true
+      # MODRINTH_PROJECTS: "simple-voice-chat"
+      MAX_TICK_TIME: "-1"
+      VERSION: 1.21.3
+      MEMORY: "3G"
+      USE_AIKAR_FLAGS: true
+      ENABLE_ROLLING_LOGS: true
+      TZ: "America/Edmonton"
+      OVERRIDE_SERVER_PROPERITES: "true"
+      DIFFICULTY: "hard"
+      WHITELIST: ${MC_WHITELIST}
+      OPS: ${MC_OPS}
+      VIEW_DISTANCE: 16
+      HIDE_ONLINE_PLAYERS: true
+      MAX_PLAYERS: 10
+      PVP: true
+      MOTD: ${MC_MOTD}
+
+    restart: unless-stopped
+
+volumes:
+  dot-server: {}
