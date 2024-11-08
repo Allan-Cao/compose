@@ -10,6 +10,7 @@ services:
       EULA: true
       type: PAPER
       ENABLE_AUTOPUSE: true
+      SPIGET_RESOURCES: ${MC_PLUGINS}
       # MODRINTH_PROJECTS: "simple-voice-chat"
       MAX_TICK_TIME: "-1"
       VERSION: 1.21.3
@@ -26,7 +27,7 @@ services:
       MAX_PLAYERS: 10
       PVP: true
       MOTD: ${MC_MOTD}
-      INITIAL_ENABLED_PACKS: "minecart_improvements,update_1_21,vanilla"
+      # INITIAL_ENABLED_PACKS: "minecart_improvements,update_1_21,vanilla"
 
     restart: unless-stopped
 
