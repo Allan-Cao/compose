@@ -116,27 +116,21 @@ services:
   # ==========================================================================
   # CLOUDFLARE TUNNEL: Secure exposure without port forwarding
   # ==========================================================================
-  # cloudflared:
-  #   image: cloudflare/cloudflared:latest
-  #   container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_tunnel
-  #   restart: unless-stopped
-  #   security_opt:
-  #     - no-new-privileges:true
-  #   # Use token-based authentication (configure tunnel in Cloudflare Zero Trust dashboard)
-  #   command: tunnel --no-autoupdate run
-  #   environment:
-  #     TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
-  #   networks:
-  #     - wordpress_internal
-  #   depends_on:
-  #     wordpress:
-  #       condition: service_healthy
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: 128M
-  #       reservations:
-  #         memory: 64M
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_tunnel
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    # Use token-based authentication (configure tunnel in Cloudflare Zero Trust dashboard)
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - wordpress_internal
+    depends_on:
+      wordpress:
+        condition: service_healthy
 
 # =============================================================================
 # NETWORKS: Isolated internal network (no external exposure)
