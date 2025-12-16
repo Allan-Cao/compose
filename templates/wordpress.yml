@@ -39,7 +39,11 @@ services:
       WORDPRESS_DB_USER: ${DB_USER}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
       WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX:-wp_}
-      
+
+      # Debug mode - set WP_DEBUG_MODE=true in .env to enable WordPress debugging
+      # Debug logs are written to /var/www/html/wp-content/debug.log
+      WP_DEBUG_MODE: ${WP_DEBUG_MODE:-false}
+
       # Security keys and salts (generate unique values!)
       WORDPRESS_AUTH_KEY: ${WP_AUTH_KEY}
       WORDPRESS_SECURE_AUTH_KEY: ${WP_SECURE_AUTH_KEY}
@@ -54,36 +58,41 @@ services:
       # and security hardening
       WORDPRESS_CONFIG_EXTRA: |
         /* Cloudflare/Reverse Proxy HTTPS Detection */
+        /* Trust X-Forwarded-Proto header from Cloudflare Tunnel */
         if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
             $$_SERVER['HTTPS'] = 'on';
         }
-        
-        /* Force HTTPS for admin and logins */
-        define('FORCE_SSL_ADMIN', true);
-        
+
+        /* FORCE_SSL_ADMIN disabled - Cloudflare Tunnel handles HTTPS termination.
+         * The tunnel connects to WordPress over HTTP internally, so forcing SSL
+         * here causes redirect loops. HTTPS is enforced at the Cloudflare edge. */
+        define('FORCE_SSL_ADMIN', false);
+
         /* Site URLs - Set via environment or database */
         if (getenv('WP_HOME')) {
             define('WP_HOME', getenv('WP_HOME'));
             define('WP_SITEURL', getenv('WP_SITEURL') ?: getenv('WP_HOME'));
         }
-        
+
         /* Security Hardening */
         define('DISALLOW_FILE_EDIT', true);
         define('WP_AUTO_UPDATE_CORE', 'minor');
-        
+
         /* Performance */
         define('WP_MEMORY_LIMIT', '256M');
         define('WP_MAX_MEMORY_LIMIT', '512M');
-        
-        /* Disable debug in production */
-        define('WP_DEBUG', false);
-        define('WP_DEBUG_LOG', false);
-        define('WP_DEBUG_DISPLAY', false);
-        
+
+        /* Debug Mode - Configurable via WP_DEBUG_MODE environment variable */
+        /* Set WP_DEBUG_MODE=true in .env to enable debugging */
+        $$debug_mode = (getenv('WP_DEBUG_MODE') === 'true');
+        define('WP_DEBUG', $$debug_mode);
+        define('WP_DEBUG_LOG', $$debug_mode);
+        define('WP_DEBUG_DISPLAY', false);  /* Never display errors to browser */
+
         /* Limit post revisions to save database space */
         define('WP_POST_REVISIONS', 5);
         define('AUTOSAVE_INTERVAL', 300);
-        
+
         /* Trash auto-empty (days) */
         define('EMPTY_TRASH_DAYS', 14);
 
@@ -94,12 +103,11 @@ services:
       # - ./php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
     networks:
       - wordpress_internal
-    # No ports exposed to host - access only through Cloudflare Tunnel
-    # Uncomment below for local development/testing only:
     ports:
-      - "127.0.0.1:8080:80"
+      - "$0.0.0.0:{DEBUG_PORT:-8080}:80" # DEBUG 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/wp-admin/install.php"]
+      # Note: WordPress image doesn't include curl. Using PHP to check health.
+      test: ["CMD-SHELL", "php -r 'exit(file_get_contents(\"http://localhost/\") ? 0 : 1);' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
