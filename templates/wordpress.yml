@@ -104,7 +104,7 @@ services:
     networks:
       - wordpress_internal
     ports:
-      - "$0.0.0.0:{DEBUG_PORT:-8080}:80" # DEBUG 
+      - "0.0.0.0:${DEBUG_PORT:-8080}:80" # DEBUG 
     healthcheck:
       # Note: WordPress image doesn't include curl. Using PHP to check health.
       test: ["CMD-SHELL", "php -r 'exit(file_get_contents(\"http://localhost/\") ? 0 : 1);' || exit 1"]
