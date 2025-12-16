@@ -1,16 +1,6 @@
-
-###############################################################################
-# WordPress + MariaDB + Cloudflare Tunnel - Docker Compose
-# Optimized for small business SEO with security in mind
-# Deploy via Portainer with accompanying .env file
-###############################################################################
-
 services:
-  # ==========================================================================
-  # DATABASE: MariaDB (preferred over MySQL for WordPress - better performance)
-  # ==========================================================================
   db:
-    image: mariadb:11-lts
+    image: mariadb:latest
     container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_db
     restart: unless-stopped
     security_opt:
@@ -20,7 +10,6 @@ services:
       MARIADB_USER: ${DB_USER}
       MARIADB_PASSWORD: ${DB_PASSWORD}
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      # Disable root login from anywhere except localhost
       MARIADB_ROOT_HOST: localhost
     volumes:
       - db_data:/var/lib/mysql
@@ -33,19 +22,9 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-    # Resource limits (adjust based on your server)
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
-  # ==========================================================================
-  # WORDPRESS: Official WordPress image with PHP 8.x
-  # ==========================================================================
   wordpress:
-    image: wordpress:6-php8.2-apache
+    image: wordpress:latest
     container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_app
     restart: unless-stopped
     security_opt:
@@ -122,19 +101,13 @@ services:
     # No ports exposed to host - access only through Cloudflare Tunnel
     # Uncomment below for local development/testing only:
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8080:82"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/wp-admin/install.php"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 90s
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
 
   # ==========================================================================
   # CLOUDFLARE TUNNEL: Secure exposure without port forwarding
