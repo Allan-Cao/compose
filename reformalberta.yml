@@ -87,10 +87,6 @@ services:
         /* Trash auto-empty (days) */
         define('EMPTY_TRASH_DAYS', 14);
 
-      # Pass site URL to WordPress (optional - can also set in WP admin)
-      WP_HOME: ${WP_HOME:-}
-      WP_SITEURL: ${WP_SITEURL:-}
-
     volumes:
       # Persist WordPress files
       - wordpress_data:/var/www/html
@@ -101,7 +97,7 @@ services:
     # No ports exposed to host - access only through Cloudflare Tunnel
     # Uncomment below for local development/testing only:
     ports:
-      - "127.0.0.1:8080:82"
+      - "127.0.0.1:8080:80"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/wp-admin/install.php"]
       interval: 30s
