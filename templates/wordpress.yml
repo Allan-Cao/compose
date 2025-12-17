@@ -54,47 +54,64 @@ services:
       WORDPRESS_LOGGED_IN_SALT: ${WP_LOGGED_IN_SALT}
       WORDPRESS_NONCE_SALT: ${WP_NONCE_SALT}
       
+      # Site URLs - REQUIRED for Cloudflare Tunnel to avoid mixed content issues
+      # Must be set to your HTTPS URL (e.g., https://example.com)
+      WP_HOME: ${WP_HOME}
+      WP_SITEURL: ${WP_SITEURL:-${WP_HOME}}
+
       # Extra wp-config.php settings for Cloudflare/reverse proxy compatibility
-      # and security hardening
       WORDPRESS_CONFIG_EXTRA: |
-        /* Cloudflare/Reverse Proxy HTTPS Detection */
-        /* Trust X-Forwarded-Proto header from Cloudflare Tunnel */
-        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
-            $$_SERVER['HTTPS'] = 'on';
+        /* =================================================================
+         * CLOUDFLARE TUNNEL CONFIGURATION
+         * ================================================================= */
+
+        /* Real Client IP - Cloudflare puts original IP in CF-Connecting-IP header.
+         * Without this, all requests appear to come from cloudflared container. */
+        if (isset($$_SERVER['HTTP_CF_CONNECTING_IP'])) {
+            $$_SERVER['REMOTE_ADDR'] = $$_SERVER['HTTP_CF_CONNECTING_IP'];
         }
 
-        /* FORCE_SSL_ADMIN disabled - Cloudflare Tunnel handles HTTPS termination.
-         * The tunnel connects to WordPress over HTTP internally, so forcing SSL
-         * here causes redirect loops. HTTPS is enforced at the Cloudflare edge. */
+        /* HTTPS Detection - Check both X-Forwarded-Proto and CF-Visitor headers */
+        $$is_https = (
+            (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
+            (isset($$_SERVER['HTTP_CF_VISITOR']) && strpos($$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
+        );
+        if ($$is_https) {
+            $$_SERVER['HTTPS'] = 'on';
+            $$_SERVER['SERVER_PORT'] = 443;
+        }
+
+        /* Cloudflare handles HTTPS termination - don't force SSL internally */
         define('FORCE_SSL_ADMIN', false);
 
-        /* Site URLs - Set via environment or database */
+        /* Site URLs from environment */
         if (getenv('WP_HOME')) {
             define('WP_HOME', getenv('WP_HOME'));
             define('WP_SITEURL', getenv('WP_SITEURL') ?: getenv('WP_HOME'));
         }
 
-        /* Security Hardening */
+        /* =================================================================
+         * SECURITY HARDENING
+         * ================================================================= */
         define('DISALLOW_FILE_EDIT', true);
         define('WP_AUTO_UPDATE_CORE', 'minor');
 
-        /* Performance */
+        /* =================================================================
+         * PERFORMANCE
+         * ================================================================= */
         define('WP_MEMORY_LIMIT', '256M');
         define('WP_MAX_MEMORY_LIMIT', '512M');
+        define('WP_POST_REVISIONS', 5);
+        define('AUTOSAVE_INTERVAL', 300);
+        define('EMPTY_TRASH_DAYS', 14);
 
-        /* Debug Mode - Configurable via WP_DEBUG_MODE environment variable */
-        /* Set WP_DEBUG_MODE=true in .env to enable debugging */
+        /* =================================================================
+         * DEBUG MODE - Set WP_DEBUG_MODE=true in .env to enable
+         * ================================================================= */
         $$debug_mode = (getenv('WP_DEBUG_MODE') === 'true');
         define('WP_DEBUG', $$debug_mode);
         define('WP_DEBUG_LOG', $$debug_mode);
-        define('WP_DEBUG_DISPLAY', false);  /* Never display errors to browser */
-
-        /* Limit post revisions to save database space */
-        define('WP_POST_REVISIONS', 5);
-        define('AUTOSAVE_INTERVAL', 300);
-
-        /* Trash auto-empty (days) */
-        define('EMPTY_TRASH_DAYS', 14);
+        define('WP_DEBUG_DISPLAY', false);
 
     volumes:
       # Persist WordPress files
