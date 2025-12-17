@@ -106,13 +106,13 @@ services:
     ports:
       - "0.0.0.0:${DEBUG_PORT:-8080}:80" # DEBUG 
     healthcheck:
-      # Note: WordPress image doesn't include curl. Using PHP to check health.
-      # Uses !== false to properly distinguish failure from empty response, with 5s timeout
-      test: ["CMD-SHELL", "php -r '$ctx=stream_context_create([\"http\"=>[\"timeout\"=>5]]);exit(@file_get_contents(\"http://localhost/\",false,$ctx)!==false?0:1);'"]
+      # Lightweight TCP socket check - verifies Apache is accepting connections
+      # without the overhead of loading WordPress
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"localhost\", 80, $e, $m, 3) ? 0 : 1);'"]
       interval: 30s
-      timeout: 15s
-      retries: 5
-      start_period: 120s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # ==========================================================================
   # CLOUDFLARE TUNNEL: Secure exposure without port forwarding
