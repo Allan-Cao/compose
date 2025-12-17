@@ -123,9 +123,7 @@ services:
     security_opt:
       - no-new-privileges:true
     # Use token-based authentication (configure tunnel in Cloudflare Zero Trust dashboard)
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate run --tunnel ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - wordpress_internal
     depends_on:
