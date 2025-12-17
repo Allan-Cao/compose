@@ -57,7 +57,7 @@ services:
       # Site URLs - REQUIRED for Cloudflare Tunnel to avoid mixed content issues
       # Must be set to your HTTPS URL (e.g., https://example.com)
       WP_HOME: ${WP_HOME}
-      WP_SITEURL: ${WP_SITEURL:-${WP_HOME}}
+      WP_SITEURL: ${WP_SITEURL}
 
       # Extra wp-config.php settings for Cloudflare/reverse proxy compatibility
       WORDPRESS_CONFIG_EXTRA: |
@@ -123,13 +123,12 @@ services:
     # ports:
     #   - "0.0.0.0:${DEBUG_PORT:-8080}:80" # DEBUG 
     healthcheck:
-      # Lightweight TCP socket check - verifies Apache is accepting connections
-      # without the overhead of loading WordPress
-      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"localhost\", 80, $e, $m, 3) ? 0 : 1);'"]
+      # Check if Apache process is running - simple and reliable
+      test: ["CMD-SHELL", "pgrep -f apache2 > /dev/null || exit 1"]
       interval: 30s
-      timeout: 10s
+      timeout: 5s
       retries: 3
-      start_period: 60s
+      start_period: 30s
 
   # ==========================================================================
   # CLOUDFLARE TUNNEL: Secure exposure without port forwarding
