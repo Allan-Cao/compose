@@ -15,7 +15,6 @@ services:
       - db_data:/var/lib/mysql
     networks:
       - wordpress_internal
-    # Health check to ensure database is ready before WordPress starts
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 30s
@@ -33,18 +32,12 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Database connection
       WORDPRESS_DB_HOST: db:3306
       WORDPRESS_DB_NAME: ${DB_NAME}
       WORDPRESS_DB_USER: ${DB_USER}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
       WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX:-wp_}
-
-      # Debug mode - set WP_DEBUG_MODE=true in .env to enable WordPress debugging
-      # Debug logs are written to /var/www/html/wp-content/debug.log
       WP_DEBUG_MODE: ${WP_DEBUG_MODE:-false}
-
-      # Security keys and salts (generate unique values!)
       WORDPRESS_AUTH_KEY: ${WP_AUTH_KEY}
       WORDPRESS_SECURE_AUTH_KEY: ${WP_SECURE_AUTH_KEY}
       WORDPRESS_LOGGED_IN_KEY: ${WP_LOGGED_IN_KEY}
@@ -53,13 +46,8 @@ services:
       WORDPRESS_SECURE_AUTH_SALT: ${WP_SECURE_AUTH_SALT}
       WORDPRESS_LOGGED_IN_SALT: ${WP_LOGGED_IN_SALT}
       WORDPRESS_NONCE_SALT: ${WP_NONCE_SALT}
-      
-      # Site URLs - REQUIRED for Cloudflare Tunnel to avoid mixed content issues
-      # Must be set to your HTTPS URL (e.g., https://example.com)
       WP_HOME: ${WP_HOME}
       WP_SITEURL: ${WP_SITEURL}
-
-      # Extra wp-config.php settings for Cloudflare/reverse proxy compatibility
       WORDPRESS_CONFIG_EXTRA: |
         /* =================================================================
          * CLOUDFLARE TUNNEL CONFIGURATION
@@ -114,55 +102,40 @@ services:
         define('WP_DEBUG_DISPLAY', false);
 
     volumes:
-      # Persist WordPress files
       - wordpress_data:/var/www/html
-      # Optional: Mount custom uploads.ini for larger file uploads
       # - ./php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
     networks:
       - wordpress_internal
     # ports:
     #   - "0.0.0.0:${DEBUG_PORT:-8080}:80" # DEBUG 
     healthcheck:
-      # Check if Apache process is running - simple and reliable
       test: ["CMD-SHELL", "pgrep -f apache2 > /dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
 
-  # ==========================================================================
-  # CLOUDFLARE TUNNEL: Secure exposure without port forwarding
-  # ==========================================================================
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_tunnel
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
-    # Use token-based authentication (configure tunnel in Cloudflare Zero Trust dashboard)
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     networks:
       - wordpress_internal
-    # Use service_started instead of service_healthy - cloudflared handles retries internally
-    # and shouldn't be blocked by WordPress healthcheck flakiness
     depends_on:
       db:
         condition: service_healthy
       wordpress:
         condition: service_started
 
-# =============================================================================
-# NETWORKS: Isolated internal network (no external exposure)
-# =============================================================================
 networks:
   wordpress_internal:
     name: ${COMPOSE_PROJECT_NAME:-wordpress}_network
     driver: bridge
     internal: false  # Set to true if you want complete isolation (no internet from containers)
 
-# =============================================================================
-# VOLUMES: Persistent data storage
-# =============================================================================
 volumes:
   db_data:
     name: ${COMPOSE_PROJECT_NAME:-wordpress}_db_data

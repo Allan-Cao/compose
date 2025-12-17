@@ -1,2 +1,6 @@
 # compose
-Repo to store the docker composes I use for proxmox
+My docker stack files.
+
+## License
+
+[MIT](https://choosealicense.com/licenses/mit/)
