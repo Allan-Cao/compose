@@ -1,4 +1,3 @@
-
 services:
   plausible_db:
     image: postgres:16-alpine
@@ -7,6 +6,8 @@ services:
       - db-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=postgres
+    networks:
+      - plausible_internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       start_period: 1m
@@ -30,6 +31,8 @@ services:
         hard: 262144
     environment:
       - CLICKHOUSE_SKIP_USER_SETUP=1
+    networks:
+      - plausible_internal
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O - http://127.0.0.1:8123/ping || exit 1"]
       start_period: 1m
@@ -91,6 +94,13 @@ services:
       - MAILGUN_BASE_URI
       - MANDRILL_API_KEY
       - SENDGRID_API_KEY
+    networks:
+      - plausible_internal
+
+networks:
+  plausible_internal:
+    driver: bridge
+    internal: false
 
 volumes:
   db-data:
