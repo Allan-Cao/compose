@@ -1,30 +1,25 @@
 services:
   plausible_db:
     image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-plausible}_db
     restart: always
     volumes:
       - db-data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
     networks:
-      - plausible_internal
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       start_period: 1m
 
   plausible_events_db:
     image: clickhouse/clickhouse-server:24.12-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-plausible}_events_db
     restart: always
     volumes:
       - event-data:/var/lib/clickhouse
       - event-logs:/var/log/clickhouse-server
-      - ./clickhouse/logs.xml:/etc/clickhouse-server/config.d/logs.xml:ro
-      # This makes ClickHouse bind to IPv4 only, since Docker doesn't enable IPv6 in bridge networks by default.
-      # Fixes "Listen [::]:9000 failed: Address family for hostname not supported" warnings.
-      - ./clickhouse/ipv4-only.xml:/etc/clickhouse-server/config.d/ipv4-only.xml:ro
-      # This makes ClickHouse consume less resources, which is useful for small setups.
-      # https://clickhouse.com/docs/en/operations/tips#using-less-than-16gb-of-ram
-      - ./clickhouse/low-resources.xml:/etc/clickhouse-server/config.d/low-resources.xml:ro
     ulimits:
       nofile:
         soft: 262144
@@ -32,16 +27,14 @@ services:
     environment:
       - CLICKHOUSE_SKIP_USER_SETUP=1
     networks:
-      - plausible_internal
+      - internal
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 -O - http://127.0.0.1:8123/ping || exit 1"]
       start_period: 1m
 
   plausible:
-    ports:
-      - 80:80
-      - 443:443
     image: ghcr.io/plausible/community-edition:v3.1.0
+    container_name: ${COMPOSE_PROJECT_NAME:-plausible}_app
     restart: always
     command: sh -c "/entrypoint.sh db createdb && /entrypoint.sh db migrate && /entrypoint.sh run"
     depends_on:
@@ -55,55 +48,53 @@ services:
       nofile:
         soft: 65535
         hard: 65535
+    labels:
+      caddy: ${PLAUSIBLE_DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 8000}}"
+      caddy.tls.dns: cloudflare {env.CF_API_TOKEN}
     environment:
       - TMPDIR=/var/lib/plausible/tmp
-      # required: https://github.com/plausible/community-edition/wiki/configuration#required
+      # Required
       - BASE_URL=${BASE_URL}
       - SECRET_KEY_BASE=${SECRET_KEY_BASE}
-      # optional: https://github.com/plausible/community-edition/wiki/configuration#optional
-      # registration: https://github.com/plausible/community-edition/wiki/configuration#registration
-      - TOTP_VAULT_KEY
-      - DISABLE_REGISTRATION
-      - ENABLE_EMAIL_VERIFICATION
-      # web: https://github.com/plausible/community-edition/wiki/configuration#web
-      - HTTP_PORT
-      - HTTPS_PORT
-      # databases: https://github.com/plausible/community-edition/wiki/configuration#database
-      - DATABASE_URL
-      - CLICKHOUSE_DATABASE_URL
-      # Google: https://github.com/plausible/community-edition/wiki/configuration#google
-      - GOOGLE_CLIENT_ID
-      - GOOGLE_CLIENT_SECRET
-      # geolocation: https://github.com/plausible/community-edition/wiki/configuration#ip-geolocation
-      - IP_GEOLOCATION_DB
-      - GEONAMES_SOURCE_FILE
-      - MAXMIND_LICENSE_KEY
-      - MAXMIND_EDITION
-      # email: https://github.com/plausible/community-edition/wiki/configuration#email
-      - MAILER_ADAPTER
-      - MAILER_EMAIL
-      - MAILER_NAME
-      - SMTP_HOST_ADDR
-      - SMTP_HOST_PORT
-      - SMTP_USER_NAME
-      - SMTP_USER_PWD
-      - SMTP_HOST_SSL_ENABLED
-      - POSTMARK_API_KEY
-      - MAILGUN_API_KEY
-      - MAILGUN_DOMAIN
-      - MAILGUN_BASE_URI
-      - MANDRILL_API_KEY
-      - SENDGRID_API_KEY
+      - HTTP_PORT=8000
+      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD:-postgres}@plausible_db:5432/plausible_db
+      - CLICKHOUSE_DATABASE_URL=http://plausible_events_db:8123/plausible_events_db
+      # Optional
+      - TOTP_VAULT_KEY=${TOTP_VAULT_KEY:-}
+      - DISABLE_REGISTRATION=${DISABLE_REGISTRATION:-}
+      - ENABLE_EMAIL_VERIFICATION=${ENABLE_EMAIL_VERIFICATION:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - IP_GEOLOCATION_DB=${IP_GEOLOCATION_DB:-}
+      - GEONAMES_SOURCE_FILE=${GEONAMES_SOURCE_FILE:-}
+      - MAXMIND_LICENSE_KEY=${MAXMIND_LICENSE_KEY:-}
+      - MAXMIND_EDITION=${MAXMIND_EDITION:-}
+      - MAILER_ADAPTER=${MAILER_ADAPTER:-}
+      - MAILER_EMAIL=${MAILER_EMAIL:-}
+      - MAILER_NAME=${MAILER_NAME:-}
+      - SMTP_HOST_ADDR=${SMTP_HOST_ADDR:-}
+      - SMTP_HOST_PORT=${SMTP_HOST_PORT:-}
+      - SMTP_USER_NAME=${SMTP_USER_NAME:-}
+      - SMTP_USER_PWD=${SMTP_USER_PWD:-}
+      - SMTP_HOST_SSL_ENABLED=${SMTP_HOST_SSL_ENABLED:-}
     networks:
-      - plausible_internal
+      - internal
+      - caddy
 
 networks:
-  plausible_internal:
+  internal:
+    name: ${COMPOSE_PROJECT_NAME:-plausible}_internal
     driver: bridge
-    internal: false
+  caddy:
+    external: true
 
 volumes:
   db-data:
+    name: ${COMPOSE_PROJECT_NAME:-plausible}_db_data
   event-data:
+    name: ${COMPOSE_PROJECT_NAME:-plausible}_event_data
   event-logs:
+    name: ${COMPOSE_PROJECT_NAME:-plausible}_event_logs
   plausible-data:
+    name: ${COMPOSE_PROJECT_NAME:-plausible}_data
