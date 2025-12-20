@@ -1,0 +1,34 @@
+services:
+  caddy:
+    build:
+      dockerfile_inline: |
+        FROM caddy:2-builder AS builder
+        RUN xcaddy build --with github.com/caddy-dns/cloudflare
+        FROM caddy:2-alpine
+        COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+    image: caddy-cloudflare:local
+    container_name: caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - CF_API_TOKEN=${CF_DNS_API_TOKEN}
+    volumes:
+      - /home/ubuntu/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - caddy
+
+networks:
+  caddy:
+    name: caddy
+    driver: bridge
+
+volumes:
+  caddy_data:
+    name: caddy_data
+  caddy_config:
+    name: caddy_config
