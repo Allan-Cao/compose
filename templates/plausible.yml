@@ -6,7 +6,7 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=postgres
     networks:
       - internal
     healthcheck:
@@ -20,12 +20,14 @@ services:
     volumes:
       - event-data:/var/lib/clickhouse
       - event-logs:/var/log/clickhouse-server
+      - ./clickhouse/logs.xml:/etc/clickhouse-server/config.d/logs.xml:ro
+      # This makes ClickHouse bind to IPv4 only, since Docker doesn't enable IPv6 in bridge networks by default.
+      # Fixes "Listen [::]:9000 failed: Address family for hostname not supported" warnings.
+      - ./clickhouse/ipv4-only.xml:/etc/clickhouse-server/config.d/ipv4-only.xml:ro
     ulimits:
       nofile:
         soft: 262144
         hard: 262144
-    environment:
-      - CLICKHOUSE_SKIP_USER_SETUP=1
     networks:
       - internal
     healthcheck:
@@ -57,27 +59,8 @@ services:
       # Required
       - BASE_URL=${BASE_URL}
       - SECRET_KEY_BASE=${SECRET_KEY_BASE}
-      - HTTP_PORT=8000
-      - DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD:-postgres}@plausible_db:5432/plausible_db
+      - DATABASE_URL=postgres://postgres:postgres@plausible_db:5432/plausible_db
       - CLICKHOUSE_DATABASE_URL=http://plausible_events_db:8123/plausible_events_db
-      # Optional
-      - TOTP_VAULT_KEY=${TOTP_VAULT_KEY:-}
-      - DISABLE_REGISTRATION=${DISABLE_REGISTRATION:-}
-      - ENABLE_EMAIL_VERIFICATION=${ENABLE_EMAIL_VERIFICATION:-}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
-      - IP_GEOLOCATION_DB=${IP_GEOLOCATION_DB:-}
-      - GEONAMES_SOURCE_FILE=${GEONAMES_SOURCE_FILE:-}
-      - MAXMIND_LICENSE_KEY=${MAXMIND_LICENSE_KEY:-}
-      - MAXMIND_EDITION=${MAXMIND_EDITION:-}
-      - MAILER_ADAPTER=${MAILER_ADAPTER:-}
-      - MAILER_EMAIL=${MAILER_EMAIL:-}
-      - MAILER_NAME=${MAILER_NAME:-}
-      - SMTP_HOST_ADDR=${SMTP_HOST_ADDR:-}
-      - SMTP_HOST_PORT=${SMTP_HOST_PORT:-}
-      - SMTP_USER_NAME=${SMTP_USER_NAME:-}
-      - SMTP_USER_PWD=${SMTP_USER_PWD:-}
-      - SMTP_HOST_SSL_ENABLED=${SMTP_HOST_SSL_ENABLED:-}
     networks:
       - internal
       - caddy
