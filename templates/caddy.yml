@@ -3,10 +3,13 @@ services:
     build:
       dockerfile_inline: |
         FROM caddy:2-builder AS builder
-        RUN xcaddy build --with github.com/caddy-dns/cloudflare
+        RUN xcaddy build \
+          --with github.com/caddy-dns/cloudflare \
+          --with github.com/lucaslorentz/caddy-docker-proxy/v2
         FROM caddy:2-alpine
         COPY --from=builder /usr/bin/caddy /usr/bin/caddy
-    image: caddy-cloudflare:local
+        CMD ["caddy", "docker-proxy"]
+    image: caddy-cloudflare-proxy:local
     container_name: caddy
     restart: always
     ports:
@@ -15,8 +18,9 @@ services:
       - "443:443/udp"
     environment:
       - CF_API_TOKEN=${CF_DNS_API_TOKEN}
+      - CADDY_INGRESS_NETWORKS=caddy
     volumes:
-      - /home/ubuntu/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
