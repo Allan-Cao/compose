@@ -1,17 +1,16 @@
 services:
   plausible_db:
     image: postgres:16-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-plausible}_db
     restart: always
     volumes:
       - db-data:/var/lib/postgresql/data
     environment:
       - POSTGRES_PASSWORD=postgres
-    networks:
-      - internal
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       start_period: 1m
+    networks:
+      - internal
 
   plausible_events_db:
     image: clickhouse/clickhouse-server:24.12-alpine
@@ -28,6 +27,8 @@ services:
       nofile:
         soft: 262144
         hard: 262144
+    environment:
+      - CLICKHOUSE_SKIP_USER_SETUP=1
     networks:
       - internal
     healthcheck:
