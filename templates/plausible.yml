@@ -52,10 +52,7 @@ services:
         soft: 65535
         hard: 65535
     labels:
-      caddy_0: ${DOMAIN_0}
-      caddy.reverse_proxy: "{{upstreams 8000}}"
-      caddy.tls.dns: cloudflare {env.CF_API_TOKEN}
-      caddy_1: ${DOMAIN_1}
+      caddy: ${PLAUSIBLE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 8000}}"
       caddy.tls.dns: cloudflare {env.CF_API_TOKEN}
     environment:
