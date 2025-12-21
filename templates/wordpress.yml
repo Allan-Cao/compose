@@ -1,7 +1,7 @@
 services:
   db:
     image: mariadb:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_db
+    container_name: ${COMPOSE_PROJECT_NAME}_db
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -14,7 +14,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     networks:
-      - wordpress_internal
+      - internal
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 30s
@@ -24,7 +24,7 @@ services:
 
   wordpress:
     image: wordpress:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_app
+    container_name: ${COMPOSE_PROJECT_NAME}_app
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -37,7 +37,7 @@ services:
       WORDPRESS_DB_USER: ${DB_USER}
       WORDPRESS_DB_PASSWORD: ${DB_PASSWORD}
       WORDPRESS_TABLE_PREFIX: ${WP_TABLE_PREFIX:-wp_}
-      WP_DEBUG_MODE: ${WP_DEBUG_MODE:-false}
+      # Security keys - required for consistent sessions across container restarts
       WORDPRESS_AUTH_KEY: ${WP_AUTH_KEY}
       WORDPRESS_SECURE_AUTH_KEY: ${WP_SECURE_AUTH_KEY}
       WORDPRESS_LOGGED_IN_KEY: ${WP_LOGGED_IN_KEY}
@@ -46,33 +46,30 @@ services:
       WORDPRESS_SECURE_AUTH_SALT: ${WP_SECURE_AUTH_SALT}
       WORDPRESS_LOGGED_IN_SALT: ${WP_LOGGED_IN_SALT}
       WORDPRESS_NONCE_SALT: ${WP_NONCE_SALT}
-      WP_HOME: ${WP_HOME}
-      WP_SITEURL: ${WP_SITEURL}
       WORDPRESS_CONFIG_EXTRA: |
         /* =================================================================
-         * CLOUDFLARE TUNNEL CONFIGURATION
+         * REVERSE PROXY CONFIGURATION (Cloudflare + Caddy)
          * ================================================================= */
 
-        /* Real Client IP - Cloudflare puts original IP in CF-Connecting-IP header.
-         * Without this, all requests appear to come from cloudflared container. */
+        /* Real Client IP - Cloudflare passes original IP in CF-Connecting-IP,
+         * Caddy passes it in X-Forwarded-For. Check both. */
         if (isset($$_SERVER['HTTP_CF_CONNECTING_IP'])) {
             $$_SERVER['REMOTE_ADDR'] = $$_SERVER['HTTP_CF_CONNECTING_IP'];
+        } elseif (isset($$_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $$ips = explode(',', $$_SERVER['HTTP_X_FORWARDED_FOR']);
+            $$_SERVER['REMOTE_ADDR'] = trim($$ips[0]);
         }
 
-        /* HTTPS Detection - Check both X-Forwarded-Proto and CF-Visitor headers */
-        $$is_https = (
-            (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ||
-            (isset($$_SERVER['HTTP_CF_VISITOR']) && strpos($$_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false)
-        );
-        if ($$is_https) {
+        /* HTTPS Detection - Trust X-Forwarded-Proto from Caddy */
+        if (isset($$_SERVER['HTTP_X_FORWARDED_PROTO']) && $$_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') {
             $$_SERVER['HTTPS'] = 'on';
             $$_SERVER['SERVER_PORT'] = 443;
         }
 
-        /* Cloudflare handles HTTPS termination - don't force SSL internally */
-        define('FORCE_SSL_ADMIN', false);
+        /* Force SSL for admin - we're behind HTTPS proxy */
+        define('FORCE_SSL_ADMIN', true);
 
-        /* Site URLs from environment */
+        /* Site URLs - set in environment or use defaults */
         if (getenv('WP_HOME')) {
             define('WP_HOME', getenv('WP_HOME'));
             define('WP_SITEURL', getenv('WP_SITEURL') ?: getenv('WP_HOME'));
@@ -94,7 +91,7 @@ services:
         define('EMPTY_TRASH_DAYS', 14);
 
         /* =================================================================
-         * DEBUG MODE - Set WP_DEBUG_MODE=true in .env to enable
+         * DEBUG MODE - Set WP_DEBUG_MODE=true in environment to enable
          * ================================================================= */
         $$debug_mode = (getenv('WP_DEBUG_MODE') === 'true');
         define('WP_DEBUG', $$debug_mode);
@@ -103,41 +100,29 @@ services:
 
     volumes:
       - wordpress_data:/var/www/html
-      # - ./php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
+    labels:
+      caddy: ${WP_DOMAIN}
+      caddy.reverse_proxy: "{{upstreams 80}}"
+      caddy.tls.dns: cloudflare {env.CF_API_TOKEN}
     networks:
-      - wordpress_internal
-    # ports:
-    #   - "0.0.0.0:${DEBUG_PORT:-8080}:80" # DEBUG 
+      - internal
+      - caddy
     healthcheck:
-      test: ["CMD-SHELL", "pgrep -f apache2 > /dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost/wp-admin/install.php || curl -f http://localhost/ || exit 1"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 30s
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-wordpress}_tunnel
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - wordpress_internal
-    depends_on:
-      db:
-        condition: service_healthy
-      wordpress:
-        condition: service_started
+      start_period: 60s
 
 networks:
-  wordpress_internal:
-    name: ${COMPOSE_PROJECT_NAME:-wordpress}_network
+  internal:
+    name: ${COMPOSE_PROJECT_NAME}_internal
     driver: bridge
-    internal: false  # Set to true if you want complete isolation (no internet from containers)
+  caddy:
+    external: true
 
 volumes:
   db_data:
-    name: ${COMPOSE_PROJECT_NAME:-wordpress}_db_data
+    name: ${COMPOSE_PROJECT_NAME}_db_data
   wordpress_data:
-    name: ${COMPOSE_PROJECT_NAME:-wordpress}_wp_data
+    name: ${COMPOSE_PROJECT_NAME}_wp_data
