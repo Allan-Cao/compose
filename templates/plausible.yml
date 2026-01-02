@@ -54,7 +54,7 @@ services:
     labels:
       caddy: ${PLAUSIBLE_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 8000}}"
-      caddy.tls.dns: cloudflare {env.CF_API_TOKEN}
+      caddy.tls.dns: cloudflare ${CF_API_TOKEN}
     environment:
       - TMPDIR=/var/lib/plausible/tmp
       # Required
