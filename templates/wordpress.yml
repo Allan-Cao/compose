@@ -103,7 +103,7 @@ services:
     labels:
       caddy: ${WP_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
-      caddy.tls.dns: cloudflare {env.CF_API_TOKEN}
+      caddy.tls.dns: cloudflare ${CF_API_TOKEN}
     networks:
       - internal
       - caddy
