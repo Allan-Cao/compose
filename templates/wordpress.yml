@@ -1,3 +1,9 @@
+configs:
+  php_uploads:
+    content: |
+      upload_max_filesize = 64M
+      post_max_size = 64M
+      memory_limit = 256M
 services:
   db:
     image: mariadb:latest
@@ -24,6 +30,9 @@ services:
 
   wordpress:
     image: wordpress:latest
+    configs:
+      - source: php_uploads
+        target: /usr/local/etc/php/conf.d/uploads.ini
     container_name: ${COMPOSE_PROJECT_NAME}_app
     restart: unless-stopped
     security_opt:
