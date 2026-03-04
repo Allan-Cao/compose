@@ -105,6 +105,9 @@ services:
       caddy: ${WP_DOMAIN}
       caddy.reverse_proxy: "{{upstreams 80}}"
       caddy.tls.dns: cloudflare ${CF_API_TOKEN}
+      caddy_1: www.${WP_DOMAIN}
+      caddy_1.redir: https://${WP_DOMAIN}{uri} permanent
+      caddy_1.tls.dns: cloudflare ${CF_API_TOKEN}
     networks:
       - internal
       - caddy
