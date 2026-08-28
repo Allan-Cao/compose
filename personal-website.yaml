@@ -1,0 +1,92 @@
+services:
+  repo-sync:
+    image: alpine/git:latest
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    volumes:
+      - personal_site_repo:/repo
+      - personal_site:/site
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -u
+        while true; do
+          OLD=$$(git -C /repo rev-parse HEAD 2>/dev/null || true)
+
+          if [ -d /repo/.git ]; then
+            if ! git -c http.extraheader="AUTHORIZATION: bearer $${GITHUB_PAT}" \
+                  -C /repo fetch --depth 1 origin "$${BRANCH}"; then
+              echo "fetch failed, retrying next interval"
+              sleep "$${SYNC_INTERVAL}"
+              continue
+            fi
+            git -C /repo reset --hard "origin/$${BRANCH}"
+          else
+            if ! git -c http.extraheader="AUTHORIZATION: bearer $${GITHUB_PAT}" \
+                  clone --depth 1 --branch "$${BRANCH}" \
+                  "https://github.com/$${REPO}.git" /repo; then
+              echo "clone failed, retrying next interval"
+              sleep "$${SYNC_INTERVAL}"
+              continue
+            fi
+          fi
+
+          NEW=$$(git -C /repo rev-parse HEAD)
+
+          if [ "$$OLD" != "$$NEW" ] || [ -z "$$(ls -A /site 2>/dev/null)" ]; then
+            cp -a "/repo/$${SITE_DIR}/." /site/
+            (cd "/repo/$${SITE_DIR}" && find . -type f | sort) > /tmp/new
+            (cd /site && find . -type f | sort) > /tmp/cur
+            comm -13 /tmp/new /tmp/cur | (cd /site && xargs -r rm -f)
+          fi
+
+          sleep "$${SYNC_INTERVAL}"
+        done
+    healthcheck:
+      test: ["CMD-SHELL", "[ -n \"$$(ls -A /site)\" ]"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - personal_site:/usr/share/nginx/html:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        cat > /etc/nginx/conf.d/default.conf <<'EOF'
+        server {
+            listen 80;
+            root  /usr/share/nginx/html;
+            index index.html;
+            absolute_redirect off;
+
+            location / {
+                try_files $$uri $$uri.html $$uri/ =404;
+            }
+
+            error_page 404 /404.html;
+        }
+        EOF
+        exec nginx -g 'daemon off;'
+    depends_on:
+      repo-sync:
+        condition: service_healthy
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CF_TOKEN}
+    depends_on:
+      - nginx
+
+volumes:
+  personal_site_repo:
+  personal_site:
