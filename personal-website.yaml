@@ -1,5 +1,5 @@
 services:
-    repo-sync:
+  repo-sync:
     image: alpine/git:latest
     restart: unless-stopped
     env_file:
