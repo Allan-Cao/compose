@@ -1,5 +1,5 @@
 services:
-  repo-sync:
+    repo-sync:
     image: alpine/git:latest
     restart: unless-stopped
     env_file:
@@ -12,34 +12,33 @@ services:
       - -c
       - |
         set -u
+        URL="https://github.com/$${REPO}.git"
+        AUTH="AUTHORIZATION: basic $$(printf 'x-access-token:%s' "$${GITHUB_PAT}" | base64 | tr -d '\n')"
+
         while true; do
-          OLD=$$(git -C /repo rev-parse HEAD 2>/dev/null || true)
+          OLD="$$(git -C /repo rev-parse HEAD 2>/dev/null || true)"
 
           if [ -d /repo/.git ]; then
-            if ! git -c http.extraheader="AUTHORIZATION: bearer $${GITHUB_PAT}" \
-                  -C /repo fetch --depth 1 origin "$${BRANCH}"; then
-              echo "fetch failed, retrying next interval"
-              sleep "$${SYNC_INTERVAL}"
-              continue
+            git -C /repo remote set-url origin "$$URL"
+            if ! git -C /repo -c http.extraheader="$$AUTH" fetch --depth 1 origin "$${BRANCH}"; then
+              echo "fetch failed, retrying next interval"; sleep "$${SYNC_INTERVAL}"; continue
             fi
-            git -C /repo reset --hard "origin/$${BRANCH}"
+            git -C /repo reset -q --hard "origin/$${BRANCH}"
           else
-            if ! git -c http.extraheader="AUTHORIZATION: bearer $${GITHUB_PAT}" \
-                  clone --depth 1 --branch "$${BRANCH}" \
-                  "https://github.com/$${REPO}.git" /repo; then
-              echo "clone failed, retrying next interval"
-              sleep "$${SYNC_INTERVAL}"
-              continue
+            if ! git -c http.extraheader="$$AUTH" clone --depth 1 --branch "$${BRANCH}" "$$URL" /repo; then
+              rm -rf /repo/.git /repo/* 2>/dev/null
+              echo "clone failed, retrying next interval"; sleep "$${SYNC_INTERVAL}"; continue
             fi
           fi
 
-          NEW=$$(git -C /repo rev-parse HEAD)
-
-          if [ "$$OLD" != "$$NEW" ] || [ -z "$$(ls -A /site 2>/dev/null)" ]; then
+          NEW="$$(git -C /repo rev-parse HEAD)"
+          if [ "$$OLD" != "$$NEW" ] || [ -z "$$(ls -A /site)" ]; then
+            echo "deploying $$NEW"
             cp -a "/repo/$${SITE_DIR}/." /site/
             (cd "/repo/$${SITE_DIR}" && find . -type f | sort) > /tmp/new
             (cd /site && find . -type f | sort) > /tmp/cur
             comm -13 /tmp/new /tmp/cur | (cd /site && xargs -r rm -f)
+            (cd /site && find . -mindepth 1 -type d -empty -delete)
           fi
 
           sleep "$${SYNC_INTERVAL}"
