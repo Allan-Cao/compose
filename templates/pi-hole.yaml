@@ -22,6 +22,8 @@ services:
       # FTLCONF_webserver_api_password: 'correct horse battery staple'
       # If using Docker's default `bridge` network setting the dns listening mode should be set to 'ALL'
       FTLCONF_dns_listeningMode: 'ALL'
+      FTLCONF_misc_dnsmasq_lines:
+        - address=/caojia.net/192.168.50.3
     # Volumes store your data between container upgrades
     volumes:
       # For persisting Pi-hole's databases and common configuration file
